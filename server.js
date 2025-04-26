@@ -22,13 +22,18 @@ function authenticate(req, res, next) {
   if (!token) return res.status(401).json({ message: 'Token required' });
 
   try {
-    // TODO: Verify JWT
+    // Verify the JWT
+    const decoded = verifyJWT(token, JWT_SECRET);
+
+    // Attach the decoded user information to the request
+    req.user = decoded;
 
     next();
   } catch {
-    res.status(403).json({ message: 'Invalid token' });
+    res.status(403).json({ message: 'Invalid or expired token' });
   }
 }
+
 
 function authorizeAdmin(req, res, next) {
   if (req.user?.role !== 'admin')
@@ -36,6 +41,7 @@ function authorizeAdmin(req, res, next) {
 
   next();
 }
+
 
 app.post('/register', async (req, res) => {
   const { username, password, role } = req.body;
@@ -48,23 +54,35 @@ app.post('/register', async (req, res) => {
   if (existingUser)
     return res.status(409).json({ message: 'User already exists' });
 
-  // TODO: Hash password
+  
+  const hashedPassword = hashPassword(password);
 
   users.push({ username, password: hashedPassword, role });
 
   res.status(201).json({ message: 'User registered' });
 });
 
+
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
   const user = users.find((u) => u.username === username);
 
-  // TODO: Verify password
+  if (!user)
+    return res.status(404).json({ message: 'User not found' });
 
-  // TODO: Sign JWT
+  // Verify the password
+  const isPasswordValid = verifyPassword(password, user.password);
+
+  if (!isPasswordValid)
+    return res.status(401).json({ message: 'Invalid password' });
+
+  // Sign JWT and generate the token
+  const token = signJWT({ username: user.username, role: user.role }, JWT_SECRET);
 
   res.json({ token });
 });
+
+
 
 app.get('/books', (req, res) => {
   res.json(books);
